@@ -4,9 +4,12 @@ import sys
 REGISTER = None
 STACK = []
 QUEUE = []
+
 INGOTO = []
 SKIP = False
+
 INPUT_QUEUE = []
+STEP = False
 
 
 class CodeFileError(Exception):
@@ -30,7 +33,8 @@ def arg_parse():
         'stack': False,
         'queue': False,
         'register': False,
-        'input': False
+        'input': False,
+        'step': False
     }
     
     if '-f' in args:
@@ -44,14 +48,16 @@ def arg_parse():
     
     if '-stack' in args:
         data['stack'] = True
-    elif '-queue' in args:
+    if '-queue' in args:
         data['queue'] = True
-    elif '-register' in args:
+    if '-register' in args:
         data['register'] = True
-    elif '-data' in args:
+    if '-data' in args:
         data['register'] = True
         data['stack'] = True
         data['queue'] = True
+    if '-step' in args:
+        data['step'] = True
         
     return data
 
@@ -142,7 +148,7 @@ oper_list = ['+', '-', '*', '/', '%', '<', '>', '=', '&', '|']
 '''sym: a-z 0-9 @(=space)
 func: ()'''
 def interp(code):
-    global REGISTER, STACK, QUEUE, SKIP
+    global REGISTER, STACK, QUEUE, SKIP, STEP
     i = 0
     depth = 0
     while True:
@@ -166,13 +172,13 @@ def interp(code):
                 REGISTER = ' '
             else:
                 REGISTER = sym
-        if 0:
+        if STEP:
             print("\n---------------------------------")
-            print(code[i], SKIP)
+            print(code[i])
             print("REGISTER: ", REGISTER if REGISTER is not None else '[BARMALEY]')
             print("STACK: ", STACK)
             print("QUEUE: ", QUEUE)
-            #input()
+            input()
         i += 1
 
 
@@ -183,6 +189,7 @@ file = args['file']
 stack_open = args['stack']
 queue_open = args['queue']
 register_open = args['register']
+STEP = args['step']
 
 
 code = ""
@@ -200,7 +207,8 @@ code = refactor(code)
 
 interp(code)
 
-print("\n---------------------------------")
+if register_open or stack_open or queue_open:
+    print("\n---------------------------------")
 if register_open:
     print("REGISTER: ", REGISTER if REGISTER is not None else '[BARMALEY]')
 
