@@ -4,6 +4,9 @@ import sys
 REGISTER = None
 STACK = []
 QUEUE = []
+INGOTO = []
+SKIP = False
+INPUT_QUEUE = []
 
 
 class CodeFileError(Exception):
@@ -26,7 +29,8 @@ def arg_parse():
         'file': None,
         'stack': False,
         'queue': False,
-        'register': False
+        'register': False,
+        'input': False
     }
     
     if '-f' in args:
@@ -37,17 +41,14 @@ def arg_parse():
             raise CodeFileError()
     else:
         raise CodeFileError('select the executive file')
-
+    
     if '-stack' in args:
         data['stack'] = True
-        
-    if '-queue' in args:
+    elif '-queue' in args:
         data['queue'] = True
-
-    if '-register' in args:
+    elif '-register' in args:
         data['register'] = True
-        
-    if '-data' in args:
+    elif '-data' in args:
         data['register'] = True
         data['stack'] = True
         data['queue'] = True
@@ -59,8 +60,8 @@ def refactor(code):
     return code.replace('\n', '').replace('\t', '').replace(' ', '')
 
 
-def com(command):
-    global REGISTER, STACK, QUEUE
+def com(command, i):
+    global REGISTER, STACK, QUEUE, INGOTO, SKIP, INPUT_QUEUE
     if command == '#':
         REGISTER *= 10
     elif command == '_':
@@ -71,9 +72,10 @@ def com(command):
         print(REGISTER, end='')
         REGISTER = None
     elif command == '?':
-        REGISTER = input()
-        if REGISTER.isdigit():
-            REGISTER = int(REGISTER)
+        if INPUT_QUEUE != []:
+            REGISTER = INPUT_QUEUE.pop(0)
+        else:
+            REGISTER = None
     elif command == '[':
         REGISTER = STACK.pop()
     elif command == ']':
@@ -87,6 +89,22 @@ def com(command):
         reg_val = REGISTER
         REGISTER = stack_upper
         STACK.append(reg_val)
+    elif command == '(':
+        if REGISTER == None:
+            SKIP = True
+            return i
+        INGOTO.append(i)
+    elif command == ')':
+        if SKIP == True:
+            SKIP = False
+            return i
+        if REGISTER == None:
+            INGOTO.pop()
+            return i
+        i = INGOTO[-1]
+
+    return i
+        
 
 
 def oper(operand):
@@ -94,19 +112,19 @@ def oper(operand):
     if operand == '+':
         REGISTER = STACK.pop() + REGISTER
     elif operand == '-':
-        REGISTER = STACK.pop() - REGISTER
+        REGISTER = REGISTER - STACK.pop()
     elif operand == '*':
         REGISTER = STACK.pop() * REGISTER
     elif operand == '/':
-        REGISTER = STACK.pop() / REGISTER
+        REGISTER = REGISTER / STACK.pop()
     elif operand == '%':
-        REGISTER = STACK.pop() % REGISTER
+        REGISTER = REGISTER % STACK.pop()
     elif operand == '<':
-        REGISTER = int(STACK.pop() < REGISTER)
-    elif operand == '>':
         REGISTER = int(STACK.pop() > REGISTER)
+    elif operand == '>':
+        REGISTER = int(STACK.pop() < REGISTER)
     elif operand == '=':
-        REGISTER = int(STACK.pop() == REGISTER)
+        REGISTER = 1 if STACK.pop() == REGISTER else None
     elif operand == '&':
         if STACK.pop() != None and REGISTER != None:
             REGISTER = 1
@@ -119,31 +137,42 @@ def oper(operand):
             REGISTER = None
 
 
-com_list = ['#', '_', '!', '.', '?', '[]', '{}', '~']
+com_list = ['#', '_', '!', '.', '?', '[', ']', '{', '}', '~', '(', ')']
 oper_list = ['+', '-', '*', '/', '%', '<', '>', '=', '&', '|']
 '''sym: a-z 0-9 @(=space)
 func: ()'''
 def interp(code):
-    global REGISTER, STACK, QUEUE
+    global REGISTER, STACK, QUEUE, SKIP
     i = 0
+    depth = 0
     while True:
         sym = code[i]
-        if sym == '"':
-            break
-        elif sym.isdigit():
-            REGISTER = int(sym)
-        elif sym in com_list:
-            com(sym)
-        elif sym in oper_list:
-            oper(sym)
-        elif sym == '(':
-            pass
-        elif sym == ')':
-            pass
-        elif sym == '@':
-            REGISTER = ' '
+        if SKIP:
+            if sym == '(':
+                depth += 1
+            elif sym == ')':
+                depth -= 1
+                SKIP = bool(depth >= 0)
         else:
-            REGISTER = sym
+            if sym == '"':
+                break
+            elif sym.isdigit():
+                REGISTER = int(sym)
+            elif sym in com_list:
+                i = com(sym, i)
+            elif sym in oper_list:
+                oper(sym)
+            elif sym == '@':
+                REGISTER = ' '
+            else:
+                REGISTER = sym
+        if 0:
+            print("\n---------------------------------")
+            print(code[i], SKIP)
+            print("REGISTER: ", REGISTER if REGISTER is not None else '[BARMALEY]')
+            print("STACK: ", STACK)
+            print("QUEUE: ", QUEUE)
+            #input()
         i += 1
 
 
@@ -163,13 +192,17 @@ try:
 except FileExistsError or FileNotFoundError:
     raise CodeFileError()
 
+if '?' in code:
+    INPUT_QUEUE = input().split()
+    INPUT_QUEUE = [int(val) if val.isdigit() else val for val in INPUT_QUEUE]
+
 code = refactor(code)
 
 interp(code)
 
 print("\n---------------------------------")
 if register_open:
-    print("REGISTER: ", REGISTER)
+    print("REGISTER: ", REGISTER if REGISTER is not None else '[BARMALEY]')
 
 if stack_open:
     print("STACK: ", STACK)
