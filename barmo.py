@@ -126,9 +126,9 @@ def oper(operand):
     elif operand == '%':
         REGISTER = REGISTER % STACK.pop()
     elif operand == '<':
-        REGISTER = int(STACK.pop() > REGISTER)
+        REGISTER = 1 if STACK.pop() > REGISTER else None
     elif operand == '>':
-        REGISTER = int(STACK.pop() < REGISTER)
+        REGISTER = 1 if STACK.pop() < REGISTER else None
     elif operand == '=':
         REGISTER = 1 if STACK.pop() == REGISTER else None
     elif operand == '&':
