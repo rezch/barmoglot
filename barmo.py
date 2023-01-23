@@ -160,7 +160,6 @@ def interp(code):
     depth = 0
     while True:
         sym = code[i]
-        print(sym)
         if SKIP:
             if sym == '(':
                 depth += 1
