@@ -1,15 +1,20 @@
 import sys
 
-
 REGISTER = None
 STACK = []
 QUEUE = []
 
-INGOTO = []
+IN_GOTO = []
 SKIP = False
 
 INPUT_QUEUE = []
 STEP = False
+
+OUTPUT_LOG = []
+
+stack_open = False
+queue_open = False
+register_open = False
 
 
 class CodeFileError(Exception):
@@ -26,7 +31,8 @@ class CodeFileError(Exception):
             return 'CodeFileError, check code source file'
 
 
-def arg_parse():
+def arg_parse(source=None):
+    global STEP
     args = sys.argv
     data = {
         'file': None,
@@ -34,18 +40,17 @@ def arg_parse():
         'queue': False,
         'register': False,
         'input': False,
-        'step': False
     }
-    
+
     if '-f' in args:
         try:
             file_index = args.index('-f') + 1
             data['file'] = args[file_index]
         except IndexError:
             raise CodeFileError()
-    else:
+    elif source is None:
         raise CodeFileError('select the executive file')
-    
+
     if '-stack' in args:
         data['stack'] = True
     if '-queue' in args:
@@ -57,17 +62,17 @@ def arg_parse():
         data['stack'] = True
         data['queue'] = True
     if '-step' in args:
-        data['step'] = True
-        
+        STEP = True
+
     return data
 
 
-def refactor(code):
-    return code.replace('\n', '').replace('\t', '').replace(' ', '')
+def refactor(file_text):
+    return file_text.replace('\n', '').replace('\t', '').replace(' ', '')
 
 
 def com(command, i):
-    global REGISTER, STACK, QUEUE, INGOTO, SKIP, INPUT_QUEUE
+    global REGISTER, STACK, QUEUE, IN_GOTO, SKIP, INPUT_QUEUE
     if command == '#':
         REGISTER *= 10
     elif command == '_':
@@ -75,10 +80,11 @@ def com(command, i):
     elif command == '!':
         REGISTER = 1 if REGISTER is None else None
     elif command == '.':
+        OUTPUT_LOG.append(REGISTER)
         print(REGISTER, end='')
         REGISTER = None
     elif command == '?':
-        if INPUT_QUEUE != []:
+        if INPUT_QUEUE:
             REGISTER = INPUT_QUEUE.pop(0)
         else:
             REGISTER = None
@@ -96,24 +102,23 @@ def com(command, i):
         REGISTER = stack_upper
         STACK.append(reg_val)
     elif command == '(':
-        if REGISTER == None:
+        if REGISTER is None:
             SKIP = True
             return i
-        INGOTO.append(i)
+        IN_GOTO.append(i)
     elif command == ')':
-        if SKIP == True:
+        if SKIP:
             SKIP = False
             return i
-        if REGISTER == None:
-            INGOTO.pop()
+        if REGISTER is None:
+            IN_GOTO.pop()
             return i
-        i = INGOTO[-1]
+        i = IN_GOTO[-1]
 
     return i
-        
 
 
-def oper(operand):
+def operator_execute(operand):
     global REGISTER, STACK, QUEUE
     if operand == '+':
         REGISTER = STACK.pop() + REGISTER
@@ -132,27 +137,30 @@ def oper(operand):
     elif operand == '=':
         REGISTER = 1 if STACK.pop() == REGISTER else None
     elif operand == '&':
-        if STACK.pop() != None and REGISTER != None:
+        if STACK.pop() is not None and REGISTER is not None:
             REGISTER = 1
         else:
             REGISTER = None
     elif operand == '|':
-        if STACK.pop() != None or REGISTER != None:
+        if STACK.pop() is not None or REGISTER is not None:
             REGISTER = 1
         else:
             REGISTER = None
 
 
 com_list = ['#', '_', '!', '.', '?', '[', ']', '{', '}', '~', '(', ')']
-oper_list = ['+', '-', '*', '/', '%', '<', '>', '=', '&', '|']
+operators_list = ['+', '-', '*', '/', '%', '<', '>', '=', '&', '|']
 '''sym: a-z 0-9 @(=space)
 func: ()'''
+
+
 def interp(code):
     global REGISTER, STACK, QUEUE, SKIP, STEP
     i = 0
     depth = 0
     while True:
         sym = code[i]
+        print(sym)
         if SKIP:
             if sym == '(':
                 depth += 1
@@ -166,8 +174,8 @@ def interp(code):
                 REGISTER = int(sym)
             elif sym in com_list:
                 i = com(sym, i)
-            elif sym in oper_list:
-                oper(sym)
+            elif sym in operators_list:
+                operator_execute(sym)
             elif sym == '@':
                 REGISTER = ' '
             else:
@@ -181,39 +189,56 @@ def interp(code):
             input()
         i += 1
 
-
-
-args = arg_parse()
-
-file = args['file']
-stack_open = args['stack']
-queue_open = args['queue']
-register_open = args['register']
-STEP = args['step']
-
-
-code = ""
-try:
-    with open(file, 'r') as f:
-        code = f.read()
-except FileExistsError or FileNotFoundError:
-    raise CodeFileError()
-
-if '?' in code:
-    INPUT_QUEUE = input().split()
-    INPUT_QUEUE = [int(val) if val.isdigit() else val for val in INPUT_QUEUE]
-
-code = refactor(code)
-
-interp(code)
-
-if register_open or stack_open or queue_open:
-    print("\n---------------------------------")
-if register_open:
-    print("REGISTER: ", REGISTER if REGISTER is not None else '[BARMALEY]')
-
-if stack_open:
-    print("STACK: ", STACK)
+def parse(file_name, file_input):
+    global stack_open, queue_open, register_open, INPUT_QUEUE
+    parsedcode = ""
+    try:
+        with open(file_name, 'r') as f:
+            parsedcode = f.read()
+    except FileExistsError or FileNotFoundError:
+        raise CodeFileError()
     
-if queue_open:
-    print("QUEUE: ", QUEUE)
+    if '?' in parsedcode and file_input is None:
+        INPUT_QUEUE = input().split()
+        INPUT_QUEUE = [int(val) if val.isdigit() else val for val in INPUT_QUEUE]
+    return parsedcode
+
+
+def cout():
+    global stack_open, queue_open, register_open
+    
+    if __name__ != "__main__":
+        return 0
+    
+    if register_open or stack_open or queue_open:
+        print("\n---------------------------------")
+    if register_open:
+        print("REGISTER: ", REGISTER if REGISTER is not None else '[BARMALEY]')
+
+    if stack_open:
+        print("STACK: ", STACK)
+
+    if queue_open:
+        print("QUEUE: ", QUEUE)
+
+
+def start(source=None, inp=None):
+    global stack_open, queue_open, register_open
+    args = arg_parse(source)
+
+    file = args['file'] if source is None else source
+    stack_open = args['stack']
+    queue_open = args['queue']
+    register_open = args['register']
+
+    parse_code = parse(file, inp)
+    parse_code = refactor(parse_code)
+
+    interp(parse_code)
+
+    cout()
+
+
+if __name__ == "__main__":
+    start()
+    
